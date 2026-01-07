@@ -1,10 +1,11 @@
 import serial
-from pynput.keyboard import Key, Listener
+from pynput.keyboard import Listener
 
 port = '/dev/cu.HC-05'
 baud = 9600
 
 COMMANDS = set(['w', 's', 'a', 'd'])
+
 
 def get_char(key):
     try:
