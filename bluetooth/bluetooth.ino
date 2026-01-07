@@ -1,7 +1,7 @@
 #define LED_PIN 7
 
 void setup() {
-  Serial.begin(4800);
+  Serial.begin(9600);
   Serial1.begin(9600);
 
   pinMode(LED_PIN, OUTPUT);
