@@ -1,10 +1,11 @@
 import serial
 from pynput.keyboard import Listener
 
-port = '/dev/cu.HC-05'
-baud = 9600
-
+PORT = '/dev/cu.HC-05'
+BAUD = 9600
 COMMANDS = set(['w', 's', 'a', 'd'])
+
+keys = []
 
 
 def get_char(key):
@@ -14,33 +15,26 @@ def get_char(key):
         return 'r'
 
 
-def send_state(ser, state):
+def send_state(ser):
+    state = keys[-1] if keys else 'r'
     msg = ord(state).to_bytes(1, 'big')
     ser.write(msg)
     print(f"Sent: {state} ({msg})")
 
 
 try:
-    with serial.Serial(port, baud, timeout=1) as ser:
+    with serial.Serial(PORT, BAUD, timeout=1) as ser:
         print("Connected.")
-        state = 'r'
-        keys = []
 
         def on_press(key):
-            global state, keys
-            if (c := get_char(key)) in COMMANDS:
-                if c not in keys:
-                    keys.append(c)
-                state = c
-
-            send_state(ser, state)
+            if (c := get_char(key)) in COMMANDS and c not in keys:
+                keys.append(c)
+            send_state(ser)
 
         def on_release(key):
-            global state, keys
             if (c := get_char(key)) in COMMANDS:
                 keys.remove(c)
-            state = keys[-1] if keys else 'r'
-            send_state(ser, state)
+            send_state(ser)
 
         with Listener(on_press=on_press, on_release=on_release) as listener:
             listener.join()

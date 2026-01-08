@@ -8,8 +8,8 @@ const uint64_t ACCEL_STEP = 5;  // millis
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 
-Adafruit_DCMotor *motor_left = AFMS.getMotor(1);
-Adafruit_DCMotor *motor_right = AFMS.getMotor(2);
+Adafruit_DCMotor motor_left = *AFMS.getMotor(1);
+Adafruit_DCMotor motor_right = *AFMS.getMotor(2);
 
 uint16_t motorSpeed = 0;
 uint64_t last_time = 0;
@@ -22,10 +22,10 @@ void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
 
-  motor_left->setSpeed(motorSpeed);
-  motor_left->run(RELEASE);
-  motor_right->setSpeed(motorSpeed);
-  motor_right->run(RELEASE);
+  motor_left.setSpeed(motorSpeed);
+  motor_left.run(RELEASE);
+  motor_right.setSpeed(motorSpeed);
+  motor_right.run(RELEASE);
 
   last_time = millis();
 }
@@ -84,11 +84,11 @@ void loop() {
 
   auto [left_dir, right_dir] = get_motor_dirs(dir);
 
-  motor_left->setSpeed(motorSpeed);
-  motor_right->setSpeed(motorSpeed);
+  motor_left.setSpeed(motorSpeed);
+  motor_right.setSpeed(motorSpeed);
 
-  motor_left->run(left_dir);
-  motor_right->run(right_dir);
+  motor_left.run(left_dir);
+  motor_right.run(right_dir);
 
   prev_dir = dir;
 }
