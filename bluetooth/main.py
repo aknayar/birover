@@ -1,7 +1,7 @@
 import serial
 from pynput.keyboard import Key, Listener
 
-port = '/dev/cu.HC-05' 
+port = '/dev/cu.BiRover' 
 baud = 9600
 state = ord('0')
 

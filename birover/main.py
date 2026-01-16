@@ -1,7 +1,7 @@
 import serial
 from pynput.keyboard import Listener
 
-PORT = '/dev/cu.HC-05'
+PORT = '/dev/cu.BiRover'
 BAUD = 9600
 COMMANDS = set(['w', 's', 'a', 'd'])
 

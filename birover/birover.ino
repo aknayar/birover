@@ -3,24 +3,39 @@
 
 #include <utility>
 
+#define L_INT_PIN 2
+#define R_INT_PIN 3
+
 const float ACCEL_MULT = 1.025;
 const uint64_t ACCEL_STEP = 5;  // millis
 
+// Motor state
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-
 Adafruit_DCMotor motor_left = *AFMS.getMotor(1);
 Adafruit_DCMotor motor_right = *AFMS.getMotor(2);
 
 uint16_t motorSpeed = 0;
 uint64_t last_time = 0;
-
 char prev_dir = 'r';
 
-void setup() {
-  AFMS.begin();
+// Photointerruptor state
+int64_t l_cnt = 0;
+int64_t r_cnt = 0;
 
+void handleLInterrupt() {
+  l_cnt++;
+}
+
+void handleRInterrupt() {
+  r_cnt++;
+}
+
+void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
+
+  // Motor setup
+  AFMS.begin();
 
   motor_left.setSpeed(motorSpeed);
   motor_left.run(RELEASE);
@@ -28,6 +43,13 @@ void setup() {
   motor_right.run(RELEASE);
 
   last_time = millis();
+
+  // Photointerruptor setup
+  pinMode(L_INT_PIN, INPUT_PULLUP);
+  pinMode(R_INT_PIN, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(L_INT_PIN), handleLInterrupt, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(R_INT_PIN), handleRInterrupt, CHANGE);
 }
 
 std::pair<uint8_t, uint8_t> get_motor_dirs(char dir) {
@@ -45,6 +67,7 @@ std::pair<uint8_t, uint8_t> get_motor_dirs(char dir) {
   }
 }
 
+// Arbitrary values I chose
 uint16_t get_max_speed(char dir) {
   switch (dir) {
     case 'w':
@@ -62,12 +85,13 @@ uint16_t get_max_speed(char dir) {
 
 void loop() {
   char dir = prev_dir;
+
+  // Receive direction state over Bluetooth
   if (Serial1.available()) {
     dir = Serial1.read();
-    Serial.println(dir);
   }
 
-  if (dir == prev_dir) {
+  if (dir == prev_dir) {  // Update speed (acceleration)
     uint16_t max_speed = get_max_speed(dir);
     if (motorSpeed != max_speed && dir != 'r') {
       uint64_t curr_time = millis();
@@ -75,10 +99,17 @@ void loop() {
       if (diff_time > ACCEL_STEP) {
         motorSpeed *= ACCEL_MULT;
         last_time = curr_time;
+
+          Serial.print(" ");
+          Serial.print(l_cnt);
+          Serial.print(" ");
+          Serial.println(r_cnt);
+          Serial.print("Diff: ");
+          Serial.println(r_cnt - l_cnt);
       }
       motorSpeed = std::min(motorSpeed, max_speed);
     }
-  } else {
+  } else {  // Reset speed
     motorSpeed = 50;
   }
 
