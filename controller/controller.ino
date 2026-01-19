@@ -1,10 +1,11 @@
 #define LED_PIN 7
 
 #define TIMEOUT_MILLIS 1000
+#define NUM_VALUES 3
 
 byte read_chars = 0;
 byte rem_chars = 0;
-char buf[1 << 8 + 1];
+char buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
 uint64_t prev_full = 0;
@@ -21,6 +22,11 @@ void setup() {
   Serial1.begin(9600);
 
   pinMode(LED_PIN, OUTPUT);
+}
+
+
+float deserialize_val(byte b) {
+  return (((int)b) - 128) / 100.0f;
 }
 
 
@@ -42,7 +48,6 @@ void loop() {
     prev_millis = curr_millis;
 
     if (!initialized) {
-      Serial.println("this path");
       if (Serial1.read() != 0) {
         return;
       }
@@ -65,10 +70,13 @@ void loop() {
 
     if (rem_chars == 0) {
       rem_chars = Serial1.read();
+      if (rem_chars > NUM_VALUES) {
+        Serial.println("nOOOOOOO");
+      }
+      assert(rem_chars <= NUM_VALUES);
       // Serial.print("just read ");
       // Serial.println(rem_chars);
       read_chars = 0;
-      buf[rem_chars] = '\0';
       // Serial.print("I need ");
       // Serial.println(rem_chars);
     }
@@ -95,7 +103,17 @@ void loop() {
       if (num_full % 10 == 0) {
         Serial.print("avging (ms): ");
         Serial.println(total_full / num_full);
+
+
       }
+      float steering = deserialize_val(buf[0]);
+      float brake = deserialize_val(buf[1]);
+      float throttle = deserialize_val(buf[2]);
+      Serial.print(steering);
+      Serial.print(",");
+      Serial.print(brake);
+      Serial.print(",");
+      Serial.println(throttle);
 
       prev_full = curr_millis;
     }

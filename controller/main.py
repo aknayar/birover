@@ -3,7 +3,7 @@ import serial
 import sys
 import time
 
-TICK_RATE = 30  # Hz
+TICK_RATE = 15  # Hz
 PRECISION = 2
 
 PORT = '/dev/cu.BiRover'
