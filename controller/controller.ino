@@ -33,7 +33,7 @@ float deserialize_val(byte b) {
 void loop() {
   uint64_t curr_millis = millis();
   if (curr_millis - prev_millis > TIMEOUT_MILLIS) {
-    initialized = false;
+    // initialized = false;
     rem_chars = 0;
     read_chars = 0;
   }
@@ -47,33 +47,34 @@ void loop() {
     // Serial.println(Serial1.available());
     prev_millis = curr_millis;
 
-    if (!initialized) {
-      if (Serial1.read() != 0) {
-        return;
-      }
+    // if (!initialized) {
+    //   if (Serial1.read() != 0) {
+    //     return;
+    //   }
 
-      Serial.println("got zero");
+    //   Serial.println("got zero");
 
-      // Clear the buffer
-      while (Serial1.available()) {
-        Serial1.read();
-      }
+    //   // Clear the buffer
+    //   while (Serial1.available()) {
+    //     Serial1.read();
+    //   }
 
-      initialized = true;
-      Serial1.write(1);
-      Serial.println("sent 1");
-      return;
-    }
+    //   initialized = true;
+    //   Serial1.write(1);
+    //   Serial.println("sent 1");
+    //   return;
+    // }
 
     // Serial.print("rem_chars=");
     // Serial.println(rem_chars);
 
     if (rem_chars == 0) {
       rem_chars = Serial1.read();
-      if (rem_chars > NUM_VALUES) {
-        Serial.println("nOOOOOOO");
+
+      // Protect against Arduino waking up in the middle of a message
+      if (rem_chars != NUM_VALUES) {
+        rem_chars = 0;
       }
-      assert(rem_chars <= NUM_VALUES);
       // Serial.print("just read ");
       // Serial.println(rem_chars);
       read_chars = 0;

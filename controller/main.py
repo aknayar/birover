@@ -44,14 +44,14 @@ try:
     with serial.Serial(PORT, BAUD, timeout=1) as ser:
         print("Connected.")
 
-        ser.write(int(0).to_bytes(1, 'big'))
-        print("Sent zero")
+        # ser.write(int(0).to_bytes(1, 'big'))
+        # print("Sent zero")
 
-        while int.from_bytes(ser.read(1), 'big') != 1:
-            continue
-        print("Got one")
+        # while int.from_bytes(ser.read(1), 'big') != 1:
+        #     continue
+        # print("Got one")
 
-        time.sleep(.25)
+        # time.sleep(.25)
 
         while running:
             for event in pygame.event.get():
