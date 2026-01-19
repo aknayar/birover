@@ -3,8 +3,9 @@ import serial
 import sys
 import time
 
-TICK_RATE = 15  # Hz
+TICK_RATE = 30  # Hz
 PRECISION = 2
+DEADZONE = 0.075
 
 PORT = '/dev/cu.BiRover'
 BAUD = 9600
@@ -33,6 +34,12 @@ def send_message(ser, msg):
     ser.write(data)
 
 
+def apply_deadzone(val):
+    if abs(val) < DEADZONE:
+        return 0
+    return val
+
+
 def serialize_value(val):
     # Convert float in the range of -1 to 1 (0.1 granularity) to a 1-byte int
     # 0 -> 128
@@ -52,7 +59,7 @@ try:
                     print("Controller disconnected.")
                     running = False
 
-            steering = round(joystick.get_axis(0), PRECISION)
+            steering = round(apply_deadzone(joystick.get_axis(0)), PRECISION)
             brake = round(joystick.get_axis(4), PRECISION)
             throttle = round(joystick.get_axis(5), PRECISION)
 
