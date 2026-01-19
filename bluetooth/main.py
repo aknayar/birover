@@ -1,8 +1,8 @@
 import serial
 from pynput.keyboard import Key, Listener
 
-port = '/dev/cu.BiRover' 
-baud = 9600
+PORT = '/dev/cu.BiRover' 
+BAUD = 38400
 state = ord('0')
 
 def on_release(key):
@@ -10,7 +10,7 @@ def on_release(key):
         return False
 
 try:
-    with serial.Serial(port, baud, timeout=1) as ser:
+    with serial.Serial(PORT, BAUD, timeout=1) as ser:
         print("Connected.")
 
         def on_press(key):
