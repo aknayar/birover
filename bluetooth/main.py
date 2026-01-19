@@ -2,7 +2,7 @@ import serial
 from pynput.keyboard import Key, Listener
 
 PORT = '/dev/cu.BiRover' 
-BAUD = 38400
+BAUD = 9600
 state = ord('0')
 
 def on_release(key):

@@ -2,7 +2,7 @@
 
 void setup() {
   Serial.begin(9600);
-  Serial1.begin(38400);
+  Serial1.begin(9600);
 
   pinMode(LED_PIN, OUTPUT);
 }
