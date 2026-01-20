@@ -1,9 +1,8 @@
 #define TIMEOUT_MILLIS 1000
 #define NUM_VALUES 3
 
-byte read_bytes = 0;
-byte rem_bytes = 0;
-char buf[NUM_VALUES];
+uint8_t rem_values = 0;
+uint8_t buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
 
@@ -26,30 +25,27 @@ float deserialize_val(byte b) {
 void loop() {
   uint64_t curr_millis = millis();
   if (curr_millis - prev_millis > TIMEOUT_MILLIS) {
-    rem_bytes = 0;
-    read_bytes = 0;
+    rem_values = 0;
   }
 
   if (Serial1.available() > 0) {
     prev_millis = curr_millis;
 
-    if (rem_bytes == 0) {
-      rem_bytes = Serial1.read();
+    if (rem_values == 0) {
+      rem_values = Serial1.read();
 
       // Protect against Arduino waking up in the middle of a message
-      if (rem_bytes != NUM_VALUES) {
-        rem_bytes = 0;
+      if (rem_values != NUM_VALUES) {
+        rem_values = 0;
       }
-      read_bytes = 0;
     }
 
-    while (Serial1.available() > 0 && rem_bytes > 0) {
-      buf[read_bytes++] = Serial1.read();
-      rem_bytes--;
+    while (Serial1.available() > 0 && rem_values > 0) {
+      buf[NUM_VALUES - rem_values--] = Serial1.read();
     }
 
     // Full message received
-    if (rem_bytes == 0) {
+    if (rem_values == 0) {
       if (prev_full != 0) {
         total_full += curr_millis - prev_full;
         num_full++;
