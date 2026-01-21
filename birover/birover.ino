@@ -7,14 +7,16 @@
 #define R_INT_PIN 3
 #define LED_PIN 7
 
-const float ACCEL_MULT = 1.05;
-const uint64_t ACCEL_STEP = 5;  // millis
+struct MotorState {
+  uint8_t direction;
+  uint16_t speed;
+};
 
 // Bluetooth State
 constexpr uint64_t TIMEOUT_MILLIS = 250;
 constexpr uint8_t NUM_VALUES = 3;
 constexpr float SPIN_THRESHOLD = 1.0f;
-constexpr std::pair<uint8_t, uint16_t> REST = { RELEASE, 0 };
+constexpr MotorState REST = { RELEASE, 0 };
 
 uint8_t rem_values = 0;
 uint8_t buf[NUM_VALUES];
@@ -40,9 +42,9 @@ void handleRInterrupt() {
   r_cnt++;
 }
 
-void update_motor(Adafruit_DCMotor& motor, const std::pair<uint8_t, uint16_t>& params) {
-  motor.setSpeed(params.second);
-  motor.run(params.first);
+void update_motor(Adafruit_DCMotor& motor, const MotorState& state) {
+  motor.run(state.direction);
+  motor.setSpeed(state.speed);
 }
 
 void setup() {
@@ -77,19 +79,19 @@ uint8_t flip_direction(const uint8_t direction) {
   return ((direction - 1) ^ 1) + 1;  // flip 1 and 2
 }
 
-std::pair<std::pair<uint8_t, uint16_t>,
-          std::pair<uint8_t, uint16_t>>
+std::pair<MotorState, MotorState>
 solve_motors(const float steering,
              const float throttle,
              const float brake) {
   const float velocity = normalize(throttle) - normalize(brake);
   const float speed = abs(velocity);
 
-  uint16_t target_left_speed = speed * MAX_SPEED;
-  uint16_t target_right_speed = speed * MAX_SPEED;
+  if (speed == 0.0f) {
+    return { REST, REST };
+  }
 
-  uint8_t left_direction = BACKWARD;
-  uint8_t right_direction = BACKWARD;
+  MotorState left_state = { BACKWARD, speed * MAX_SPEED };
+  MotorState right_state = { BACKWARD, speed * MAX_SPEED };
 
   float steering_multiplier = 1.0f;
   bool spin = false;
@@ -100,26 +102,19 @@ solve_motors(const float steering,
     steering_multiplier = (abs(steering) - SPIN_THRESHOLD) * (1 / (1 - SPIN_THRESHOLD));
   }
   if (steering < 0) {
-    target_left_speed *= steering_multiplier;
-    if (spin) left_direction = FORWARD;
+    left_state.speed *= steering_multiplier;
+    if (spin) left_state.direction = FORWARD;
   } else {
-    target_right_speed *= steering_multiplier;
-    if (spin) right_direction = FORWARD;
+    right_state.speed *= steering_multiplier;
+    if (spin) right_state.direction = FORWARD;
   }
 
   if (velocity < 0) {
-    left_direction = flip_direction(left_direction);
-    right_direction = flip_direction(right_direction);
+    left_state.direction = flip_direction(left_state.direction);
+    right_state.direction = flip_direction(right_state.direction);
   }
 
-  if (speed == 0) {
-    left_direction = RELEASE;
-    right_direction = RELEASE;
-  }
-
-  Serial.println(speed);
-
-  return { { left_direction, target_left_speed }, { right_direction, target_right_speed } };
+  return { left_state, right_state };
 }
 
 void loop() {
