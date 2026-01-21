@@ -154,27 +154,14 @@ void loop() {
         num_full++;
       }
 
-      // Debug
-      if (num_full % 10 == 0) {
-        Serial.print("Average (ms): ");
-        Serial.println(total_full / num_full);
-      }
-
       float steering = deserialize_val(buf[0]);
       float brake = deserialize_val(buf[1]);
       float throttle = deserialize_val(buf[2]);
-      // Serial.print(steering);
-      // Serial.print(",");
-      // Serial.print(brake);
-      // Serial.print(",");
-      // Serial.println(throttle);
 
       // Convert throttle, brake, steering into motor values
       auto [l, r] = solve_motors(steering, throttle, brake);
       update_motor(&motor_left, l);
       update_motor(&motor_right, r);
-
-
 
       prev_full = curr_millis;
     }

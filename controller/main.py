@@ -4,8 +4,9 @@ import sys
 import time
 
 TICK_RATE = 30  # Hz
-PRECISION = 2
+PRECISION = 1
 DEADZONE = 0.075
+TIMEOUT = 0.2 # Resend even if no change (s)
 
 PORT = '/dev/cu.BiRover'
 BAUD = 9600
@@ -23,6 +24,9 @@ if pygame.joystick.get_count() == 0:
 joystick = pygame.joystick.Joystick(0)
 
 running = True
+
+prev_state = (float('inf'), float('inf'), float('inf'))
+prev_time = 0
 
 
 def send_message(ser, msg):
@@ -67,11 +71,16 @@ try:
             brake_ser = serialize_value(brake)
             throttle_ser = serialize_value(throttle)
 
-            print(
-                f"\rSteering: {steering}, Brake: {brake}, Throttle: {throttle} -> {steering_ser}, {brake_ser}, {throttle_ser}", end="")
+            curr_time = time.time()
+            if (steering, brake, throttle) != prev_state or curr_time - prev_time >= TIMEOUT:
+                print(
+                    f"\rSteering: {steering}, Brake: {brake}, Throttle: {throttle} -> {steering_ser}, {brake_ser}, {throttle_ser}", end="")
 
-            msg = f"{steering_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
-            send_message(ser, msg)
+                msg = f"{steering_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
+                send_message(ser, msg)
+                prev_time = curr_time
+
+            prev_state = (steering, brake, throttle)
 
             clock.tick(TICK_RATE)
 
