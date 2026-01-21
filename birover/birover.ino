@@ -83,15 +83,16 @@ std::pair<MotorState, MotorState>
 solve_motors(const float steering,
              const float throttle,
              const float brake) {
-  const float velocity = normalize(throttle) - normalize(brake);
+  const float velocity = (normalize(throttle) - normalize(brake)) * MAX_SPEED;
   const float speed = abs(velocity);
 
   if (speed == 0.0f) {
     return { REST, REST };
   }
 
-  MotorState left_state = { BACKWARD, speed * MAX_SPEED };
-  MotorState right_state = { BACKWARD, speed * MAX_SPEED };
+  // "BACKWARD" is really forward...
+  MotorState left_state = { BACKWARD, speed };
+  MotorState right_state = { BACKWARD, speed };
 
   float steering_multiplier = 1.0f;
   bool spin = false;
