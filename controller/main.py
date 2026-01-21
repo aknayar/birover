@@ -6,7 +6,7 @@ import time
 TICK_RATE = 30  # Hz
 PRECISION = 1
 DEADZONE = 0.075
-TIMEOUT = 0.2 # Resend even if no change (s)
+TIMEOUT = 0.2  # (s) Resend even if no change
 
 PORT = '/dev/cu.BiRover'
 BAUD = 9600
@@ -74,7 +74,8 @@ try:
             curr_time = time.time()
             if (steering, brake, throttle) != prev_state or curr_time - prev_time >= TIMEOUT:
                 print(
-                    f"\rSteering: {steering}, Brake: {brake}, Throttle: {throttle} -> {steering_ser}, {brake_ser}, {throttle_ser}", end="")
+                    f"\rSteering: {steering}, Brake: {brake}, Throttle: {throttle}"
+                    f" ->{steering_ser}, {brake_ser}, {throttle_ser}", end="")
 
                 msg = f"{steering_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
                 send_message(ser, msg)
