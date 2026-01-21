@@ -46,9 +46,9 @@ def apply_deadzone(val):
 
 def serialize_value(val):
     # Convert float in the range of -1 to 1 (0.1 granularity) to a 1-byte int
-    # 0 -> 128
+    # 0 -> 16
 
-    return int(min(1, max(-1, val)) * 100) + 128
+    return int(min(1, max(-1, val)) * 10) + 16
 
 
 try:
@@ -72,7 +72,11 @@ try:
             throttle_ser = serialize_value(throttle)
 
             curr_time = time.time()
-            if (steering, brake, throttle) != prev_state or curr_time - prev_time >= TIMEOUT:
+            timeout = curr_time - prev_time >= TIMEOUT
+            if (steering, brake, throttle) != prev_state or timeout:
+                if timeout:
+                    print(f"Timeout: {curr_time - prev_time}")
+
                 print(
                     f"\rSteering: {steering}, Brake: {brake}, Throttle: {throttle}"
                     f" ->{steering_ser}, {brake_ser}, {throttle_ser}", end="")
@@ -83,7 +87,8 @@ try:
 
             prev_state = (steering, brake, throttle)
 
-            clock.tick(TICK_RATE)
+            if not timeout:
+                clock.tick(TICK_RATE)
 
 except serial.SerialException as e:
     print(f"[Error] {e}")

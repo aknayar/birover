@@ -18,7 +18,6 @@ constexpr uint8_t NUM_VALUES = 3;
 constexpr float SPIN_THRESHOLD = 1.0f;
 constexpr MotorState REST = { RELEASE, 0 };
 
-uint8_t rem_values = 0;
 uint8_t buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
@@ -68,7 +67,7 @@ void setup() {
 }
 
 float deserialize_val(const byte b) {
-  return (((int)b) - 128) / 100.0f;
+  return (((int)b) - 16) / 10.0f;
 }
 
 float normalize(const float value) {
@@ -121,39 +120,27 @@ solve_motors(const float steering,
 void loop() {
   const uint64_t curr_millis = millis();
   if (curr_millis - prev_millis > TIMEOUT_MILLIS) {
-    rem_values = 0;
     update_motor(motor_left, REST);
     update_motor(motor_right, REST);
     digitalWrite(LED_PIN, HIGH);
   }
 
-  if (Serial1.available() > 0) {
+  if (Serial1.available() >= 1 + NUM_VALUES) {
     digitalWrite(LED_PIN, LOW);
     prev_millis = curr_millis;
 
-    if (rem_values == 0) {
-      rem_values = Serial1.read();
+    if (Serial1.read() != NUM_VALUES) return;
 
-      // Protect against Arduino waking up in the middle of a message
-      if (rem_values != NUM_VALUES) {
-        rem_values = 0;
-      }
-    }
-
-    while (Serial1.available() > 0 && rem_values > 0) {
-      buf[NUM_VALUES - rem_values--] = Serial1.read();
-    }
+    Serial1.readBytes(buf, NUM_VALUES);
 
     // Full message received
-    if (rem_values == 0) {
-      const float steering = deserialize_val(buf[0]);
-      const float brake = deserialize_val(buf[1]);
-      const float throttle = deserialize_val(buf[2]);
+    const float steering = deserialize_val(buf[0]);
+    const float brake = deserialize_val(buf[1]);
+    const float throttle = deserialize_val(buf[2]);
 
-      // Convert throttle, brake, steering into motor values
-      const auto [l, r] = solve_motors(steering, throttle, brake);
-      update_motor(motor_left, l);
-      update_motor(motor_right, r);
-    }
+    // Convert throttle, brake, steering into motor values
+    const auto [l, r] = solve_motors(steering, throttle, brake);
+    update_motor(motor_left, l);
+    update_motor(motor_right, r);
   }
 }
