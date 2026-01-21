@@ -5,29 +5,24 @@
 
 #define L_INT_PIN 2
 #define R_INT_PIN 3
+#define LED_PIN 7
 
 const float ACCEL_MULT = 1.05;
 const uint64_t ACCEL_STEP = 5;  // millis
 
 // Bluetooth State
-#define TIMEOUT_MILLIS 250
-#define NUM_VALUES 3
-#define SPIN_THRESHOLD 0.9f
-
-#define REST \
-  { RELEASE, 0 }
+constexpr uint64_t TIMEOUT_MILLIS = 250;
+constexpr uint8_t NUM_VALUES = 3;
+constexpr float SPIN_THRESHOLD = 1.0f;
+constexpr std::pair<uint8_t, uint16_t> REST = { RELEASE, 0 };
 
 uint8_t rem_values = 0;
 uint8_t buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
 
-uint64_t prev_full = 0;
-uint64_t total_full = 0;
-uint64_t num_full = 0;
-
 // Motor state
-#define MAX_SPEED 255
+constexpr uint16_t MAX_SPEED = 255;
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_DCMotor motor_left = *AFMS.getMotor(1);
@@ -45,20 +40,22 @@ void handleRInterrupt() {
   r_cnt++;
 }
 
-void update_motor(Adafruit_DCMotor* motor, std::pair<uint8_t, uint16_t> params) {
-  motor->setSpeed(params.second);
-  motor->run(params.first);
+void update_motor(Adafruit_DCMotor& motor, const std::pair<uint8_t, uint16_t>& params) {
+  motor.setSpeed(params.second);
+  motor.run(params.first);
 }
 
 void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
 
   // Motor setup
   AFMS.begin();
 
-  update_motor(&motor_left, REST);
-  update_motor(&motor_right, REST);
+  update_motor(motor_left, REST);
+  update_motor(motor_right, REST);
 
   // Photointerruptor setup
   pinMode(L_INT_PIN, INPUT_PULLUP);
@@ -68,25 +65,25 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(R_INT_PIN), handleRInterrupt, CHANGE);
 }
 
-float deserialize_val(byte b) {
+float deserialize_val(const byte b) {
   return (((int)b) - 128) / 100.0f;
 }
 
-float normalize(float value) {
+float normalize(const float value) {
   return (value + 1.0f) / 2.0f;  // [-1, 1] -> [0, 1]
 }
 
-uint8_t flip_direction(uint8_t direction) {
+uint8_t flip_direction(const uint8_t direction) {
   return ((direction - 1) ^ 1) + 1;  // flip 1 and 2
 }
 
 std::pair<std::pair<uint8_t, uint16_t>,
           std::pair<uint8_t, uint16_t>>
-solve_motors(float steering,
-             float throttle,
-             float brake) {
-  float velocity = normalize(throttle) - normalize(brake);
-  float speed = abs(velocity);
+solve_motors(const float steering,
+             const float throttle,
+             const float brake) {
+  const float velocity = normalize(throttle) - normalize(brake);
+  const float speed = abs(velocity);
 
   uint16_t target_left_speed = speed * MAX_SPEED;
   uint16_t target_right_speed = speed * MAX_SPEED;
@@ -120,18 +117,22 @@ solve_motors(float steering,
     right_direction = RELEASE;
   }
 
+  Serial.println(speed);
+
   return { { left_direction, target_left_speed }, { right_direction, target_right_speed } };
 }
 
 void loop() {
-  uint64_t curr_millis = millis();
+  const uint64_t curr_millis = millis();
   if (curr_millis - prev_millis > TIMEOUT_MILLIS) {
     rem_values = 0;
-    update_motor(&motor_left, REST);
-    update_motor(&motor_right, REST);
+    update_motor(motor_left, REST);
+    update_motor(motor_right, REST);
+    digitalWrite(LED_PIN, HIGH);
   }
 
   if (Serial1.available() > 0) {
+    digitalWrite(LED_PIN, LOW);
     prev_millis = curr_millis;
 
     if (rem_values == 0) {
@@ -149,21 +150,14 @@ void loop() {
 
     // Full message received
     if (rem_values == 0) {
-      if (prev_full != 0) {
-        total_full += curr_millis - prev_full;
-        num_full++;
-      }
-
-      float steering = deserialize_val(buf[0]);
-      float brake = deserialize_val(buf[1]);
-      float throttle = deserialize_val(buf[2]);
+      const float steering = deserialize_val(buf[0]);
+      const float brake = deserialize_val(buf[1]);
+      const float throttle = deserialize_val(buf[2]);
 
       // Convert throttle, brake, steering into motor values
-      auto [l, r] = solve_motors(steering, throttle, brake);
-      update_motor(&motor_left, l);
-      update_motor(&motor_right, r);
-
-      prev_full = curr_millis;
+      const auto [l, r] = solve_motors(steering, throttle, brake);
+      update_motor(motor_left, l);
+      update_motor(motor_right, r);
     }
   }
 }
