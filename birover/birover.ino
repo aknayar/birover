@@ -122,16 +122,15 @@ uint8_t flip_direction(const uint8_t direction) {
   return ((direction - 1) ^ 1) + 1;  // flip 1 and 2
 }
 
-std::pair<MotorTarget, MotorTarget>
-translate_input(const float steering,
-                const float throttle,
-                const float brake) {
+MotorTarget translate_input(const int idx,
+                            const float steering,
+                            const float throttle,
+                            const float brake) {
   const float velocity = (normalize(throttle) - normalize(brake)) * MAX_RPM;
   const float speed = abs(velocity);
 
   // "BACKWARD" is really forward...
-  MotorTarget left_target = { BACKWARD, speed };
-  MotorTarget right_target = { BACKWARD, speed };
+  MotorTarget target = { BACKWARD, speed };
 
   float steering_multiplier = 1.0f;
   bool spin = false;
@@ -141,30 +140,26 @@ translate_input(const float steering,
     spin = true;
     steering_multiplier = (abs(steering) - SPIN_THRESHOLD) * (1 / (1 - SPIN_THRESHOLD));
   }
-  if (steering < 0) {
-    left_target.rpm *= steering_multiplier;
-    if (spin) left_target.direction = FORWARD;
-  } else {
-    left_target.rpm *= steering_multiplier;
-    if (spin) right_target.direction = FORWARD;
+  if (steering < 0 && idx == LEFT) {
+    target.rpm *= steering_multiplier;
+    if (spin) target.direction = FORWARD;
+  }
+  if (steering > 0 && idx == RIGHT) {
+    target.rpm *= steering_multiplier;
+    if (spin) target.direction = FORWARD;
   }
 
   if (velocity < 0) {
-    left_target.direction = flip_direction(left_target.direction);
-    right_target.direction = flip_direction(right_target.direction);
+    target.direction = flip_direction(target.direction);
   }
 
-  if (left_target.rpm == 0) {
-    left_target.direction = controllers[0].prev_direction;
-  }
-  if (right_target.rpm == 0) {
-    right_target.direction = controllers[1].prev_direction;
+  if (target.rpm == 0) {
+    target.direction = controllers[idx].prev_direction;
   }
 
-  controllers[0].prev_direction = left_target.direction;
-  controllers[1].prev_direction = right_target.direction;
+  controllers[idx].prev_direction = target.direction;
 
-  return { left_target, right_target };
+  return target;
 }
 
 MotorState solve_motor(int idx, MotorTarget target) {
@@ -182,23 +177,8 @@ MotorState solve_motor(int idx, MotorTarget target) {
 
   uint16_t speed = min(max(0.0f, output), MAX_SPEED);
 
-  Serial.print(KP * error);
-  // Serial.print(" ");
-  // Serial.print(error_der);
-  Serial.print(" ");
-  Serial.print(0);
-  Serial.print(" ");
-  Serial.print(5);
-  Serial.print(" ");
-  Serial.print(controller.rpm);
-  Serial.print(" ");
-  Serial.print(target.rpm);
-  Serial.print(" ");
-  Serial.println(speed);
-
   if (speed < 30) {
     speed = 0;
-    // target.direction = RELEASE;
   }
 
   return { target.direction, (uint8_t)speed };
@@ -253,17 +233,21 @@ void loop() {
       steering = deserialize_val(buf[0]);
       brake = deserialize_val(buf[1]);
       throttle = deserialize_val(buf[2]);
+
+      // Serial.print(0);
+      // Serial.print(" ");
+      // Serial.print(5);
+      // Serial.print(" ");
+      // Serial.print(controllers[0].rpm);
+      // Serial.print(" ");
+      // Serial.println(controllers[1].rpm);
     };
   }
 
   // Convert throttle, brake, steering into motor values
-  const auto [l, r] = translate_input(steering, throttle, brake);
-  // Serial.print(l.rpm);
-  // Serial.print(" ");
-  // Serial.print(controllers[0].rpm);
-  // Serial.print(" ");
-  // Serial.println(controllers[1].rpm);
-
-  // update_motor(motors[LEFT], solve_motor(LEFT, l));
-  update_motor(motors[RIGHT], solve_motor(RIGHT, r));
+  FOR_MOTORS(i) {
+    const MotorTarget target = translate_input(i, steering, throttle, brake);
+    const MotorState state = solve_motor(i, target);
+    update_motor(motors[i], state);
+  }
 }
