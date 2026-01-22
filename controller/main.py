@@ -3,7 +3,7 @@ import serial
 import sys
 import time
 
-TICK_RATE = 30  # Hz
+TICK_RATE = 60  # Hz
 PRECISION = 1
 DEADZONE = 0.075
 TIMEOUT = 0.2  # (s) Resend even if no change
