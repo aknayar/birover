@@ -30,7 +30,6 @@ struct MotorTarget {
 // Bluetooth State
 constexpr uint64_t TIMEOUT_MILLIS = 250;
 constexpr uint8_t NUM_VALUES = 3;
-constexpr float SPIN_THRESHOLD = 1.0f;
 constexpr MotorState REST = { RELEASE, 0 };
 
 #define NUM_BITS_DEFAULT 5
@@ -45,7 +44,6 @@ constexpr uint8_t MASK_SPIN = (1 << NUM_BITS_SPIN) - 1;
 uint8_t buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
-
 
 volatile float steering, spinning, brake, throttle;
 
@@ -136,32 +134,36 @@ uint8_t flip_direction(const uint8_t direction) {
 
 MotorTarget translate_input(const int idx,
                             const float steering,
+                            const float spinning,
                             const float throttle,
                             const float brake) {
-  const float velocity = (normalize(throttle) - normalize(brake)) * MAX_RPM;
+  const bool spin = spinning != 0;
+  const float velocity = (spin ? spinning : (normalize(throttle) - normalize(brake))) * MAX_RPM;
   const float speed = abs(velocity);
 
   // "BACKWARD" is really forward...
   MotorTarget target = { BACKWARD, speed };
 
   float steering_multiplier = 1.0f;
-  bool spin = false;
-  if (abs(steering) <= SPIN_THRESHOLD) {
-    steering_multiplier = (SPIN_THRESHOLD - abs(steering)) / SPIN_THRESHOLD;
+  if (!spin) steering_multiplier = 1.0f - abs(steering);
+
+  if (spin) {
+    if (spinning < 0 && idx == LEFT) {
+      target.direction = FORWARD;
+    }
+    if (spinning > 0 && idx == RIGHT) {
+      target.direction = FORWARD;
+    }
   } else {
-    spin = true;
-    steering_multiplier = (abs(steering) - SPIN_THRESHOLD) * (1 / (1 - SPIN_THRESHOLD));
-  }
-  if (steering < 0 && idx == LEFT) {
-    target.rpm *= steering_multiplier;
-    if (spin) target.direction = FORWARD;
-  }
-  if (steering > 0 && idx == RIGHT) {
-    target.rpm *= steering_multiplier;
-    if (spin) target.direction = FORWARD;
+    if (steering < 0 && idx == LEFT) {
+      target.rpm *= steering_multiplier;
+    }
+    if (steering > 0 && idx == RIGHT) {
+      target.rpm *= steering_multiplier;
+    }
   }
 
-  if (velocity < 0) {
+  if (!spin && velocity < 0) {
     target.direction = flip_direction(target.direction);
   }
 
@@ -269,7 +271,7 @@ void loop() {
 
   // Convert throttle, brake, steering into motor values
   FOR_MOTORS(i) {
-    const MotorTarget target = translate_input(i, steering, throttle, brake);
+    const MotorTarget target = translate_input(i, steering, spinning, throttle, brake);
     const MotorState state = solve_motor(i, target);
     update_motor(motors[i], state);
   }
