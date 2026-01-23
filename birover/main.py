@@ -3,7 +3,7 @@ import serial
 import sys
 import time
 import os
-from pynput.keyboard import Listener
+from pynput.keyboard import Key, Listener
 
 TICK_RATE = 30  # Hz
 DEADZONE = 0.075
@@ -76,71 +76,81 @@ try:
         def on_press(key):
             if (c := get_char(key)) in COMMANDS and c not in keys:
                 keys.add(c)
+            if key == Key.esc:
+                keys.add('esc')
 
         def on_release(key):
             if (c := get_char(key)) in COMMANDS:
                 keys.discard(c)
 
-        with Listener(on_press=on_press, on_release=on_release) as listener:
-            while running:
-                steering, spinning, brake, throttle = 0.0, 0.0, -1.0, -1.0
-                if len(keys) > 0:
-                    if 'w' in keys:
-                        throttle += 2
-                    if 's' in keys:
-                        brake += 2
-                    if 'a' in keys:
-                        steering -= .5
-                    if 'd' in keys:
-                        steering += .5
-                    if steering != 0.0 and brake == -1.0 and throttle == -1.0:
-                        spinning = 2 * steering
-                        steering = 0.0
+        listener = Listener(on_press=on_press, on_release=on_release)
+        listener.daemon = True
+        listener.start()
 
-                else:
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            running = False
-                        if event.type == pygame.JOYDEVICEREMOVED:
-                            print("Controller disconnected.")
-                            running = False
+        while running:
+            steering, spinning, brake, throttle = 0.0, 0.0, -1.0, -1.0
+            if len(keys) > 0:
+                if 'esc' in keys:
+                    print("Running is now false")
+                    running = False
+                if 'w' in keys:
+                    throttle += 2
+                if 's' in keys:
+                    brake += 2
+                if 'a' in keys:
+                    steering -= .5
+                if 'd' in keys:
+                    steering += .5
+                if steering != 0.0 and brake == -1.0 and throttle == -1.0:
+                    spinning = 2 * steering
+                    steering = 0.0
 
-                    steering = round(apply_deadzone(
-                        joystick.get_axis(0)), PRECISION_DEFAULT)
-                    spinning = round(round(apply_deadzone(
-                        joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
-                    brake = round(joystick.get_axis(4), PRECISION_DEFAULT)
-                    throttle = round(joystick.get_axis(5), PRECISION_DEFAULT)
+            else:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                    if event.type == pygame.JOYDEVICEREMOVED:
+                        print("Controller disconnected.")
+                        running = False
 
-                steering_ser = serialize_value(
-                    steering, VALUES_DEFAULT, SHIFT_DEFAULT)
-                spinning_ser = serialize_value(spinning, VALUES_SPIN, SHIFT_SPIN)
-                steering_spinning_ser = steering_ser | spinning_ser
+                steering = round(apply_deadzone(
+                    joystick.get_axis(0)), PRECISION_DEFAULT)
+                spinning = round(round(apply_deadzone(
+                    joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
+                brake = round(joystick.get_axis(4), PRECISION_DEFAULT)
+                throttle = round(joystick.get_axis(5), PRECISION_DEFAULT)
 
-                brake_ser = serialize_value(brake, VALUES_DEFAULT, SHIFT_DEFAULT)
-                throttle_ser = serialize_value(
-                    throttle, VALUES_DEFAULT, SHIFT_DEFAULT)
+            steering_ser = serialize_value(
+                steering, VALUES_DEFAULT, SHIFT_DEFAULT)
+            spinning_ser = serialize_value(
+                spinning, VALUES_SPIN, SHIFT_SPIN)
+            steering_spinning_ser = steering_ser | spinning_ser
 
-                curr_time = time.time()
-                timeout = curr_time - prev_time >= TIMEOUT
-                if (steering, spinning, brake, throttle) != prev_state or timeout:
-                    print(
-                        f"\rSteering: {steering}, Spinning: {spinning}, Brake: {brake}, Throttle: {throttle}"
-                        f" ->{steering_spinning_ser}, {brake_ser}, {throttle_ser}", end="")
+            brake_ser = serialize_value(
+                brake, VALUES_DEFAULT, SHIFT_DEFAULT)
+            throttle_ser = serialize_value(
+                throttle, VALUES_DEFAULT, SHIFT_DEFAULT)
 
-                    msg = f"{steering_spinning_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
-                    send_message(ser, msg)
-                    prev_time = curr_time
+            curr_time = time.time()
+            timeout = curr_time - prev_time >= TIMEOUT
+            if (steering, spinning, brake, throttle) != prev_state or timeout:
+                print(
+                    f"\rSteering: {steering}, Spinning: {spinning}, Brake: {brake}, Throttle: {throttle}"
+                    f" ->{steering_spinning_ser}, {brake_ser}, {throttle_ser}", end="")
 
-                prev_state = (steering, spinning, brake, throttle)
+                msg = f"{steering_spinning_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
+                send_message(ser, msg)
+                prev_time = curr_time
 
-                if not timeout:
-                    clock.tick(TICK_RATE)
-            listener.join()
+            prev_state = (steering, spinning, brake, throttle)
+
+            if not timeout:
+                clock.tick(TICK_RATE)
+
+        pygame.quit()
+
 
 except serial.SerialException as e:
     print(f"[Error] {e}")
 except KeyboardInterrupt:
     print("Stopping...")
-
-pygame.quit()
