@@ -5,23 +5,28 @@ import time
 import os
 from pynput.keyboard import Key, Listener
 
+# Bluetooth constants
+PORT = '/dev/cu.BiRover'
+BAUD = 9600
+
+# Control constants
 TICK_RATE = 30  # Hz
 DEADZONE = 0.075
 TIMEOUT = 0.2  # (s) Resend even if no change
+COMMANDS = set(['w', 's', 'a', 'd'])
+
+# Serialization constants
 PRECISION_DEFAULT = 1
 PRECISION_SPIN = 2
 VALUES_DEFAULT = 10
 VALUES_SPIN = 3
 SHIFT_DEFAULT = 0
 SHIFT_SPIN = 5
-
-PORT = '/dev/cu.BiRover'
-BAUD = 9600
 DELIM = ','
-COMMANDS = set(['w', 's', 'a', 'd'])
 
 keys = set()
 
+# Avoid pygame window
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 pygame.init()
@@ -65,7 +70,7 @@ def apply_deadzone(val):
 
 def serialize_value(val, values, shift):
     # Convert float in the range of -1 to 1 (0.1 granularity) to a 1-byte int
-    # 0 -> offset
+    # -1 -> 2 ** shift
     return (int(round((min(1, max(-1, val)) + 1) * values))) << shift
 
 
@@ -84,7 +89,7 @@ try:
                 keys.discard(c)
 
         listener = Listener(on_press=on_press, on_release=on_release)
-        listener.daemon = True
+        listener.daemon = True # Quicker shutdown
         listener.start()
 
         while running:
@@ -113,23 +118,16 @@ try:
                         print("Controller disconnected.")
                         running = False
 
-                steering = round(apply_deadzone(
-                    joystick.get_axis(0)), PRECISION_DEFAULT)
-                spinning = round(round(apply_deadzone(
-                    joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
+                steering = round(apply_deadzone(joystick.get_axis(0)), PRECISION_DEFAULT)
+                spinning = round(round(apply_deadzone(joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
                 brake = round(joystick.get_axis(4), PRECISION_DEFAULT)
                 throttle = round(joystick.get_axis(5), PRECISION_DEFAULT)
 
-            steering_ser = serialize_value(
-                steering, VALUES_DEFAULT, SHIFT_DEFAULT)
-            spinning_ser = serialize_value(
-                spinning, VALUES_SPIN, SHIFT_SPIN)
+            steering_ser = serialize_value(steering, VALUES_DEFAULT, SHIFT_DEFAULT)
+            spinning_ser = serialize_value(spinning, VALUES_SPIN, SHIFT_SPIN)
             steering_spinning_ser = steering_ser | spinning_ser
-
-            brake_ser = serialize_value(
-                brake, VALUES_DEFAULT, SHIFT_DEFAULT)
-            throttle_ser = serialize_value(
-                throttle, VALUES_DEFAULT, SHIFT_DEFAULT)
+            brake_ser = serialize_value(brake, VALUES_DEFAULT, SHIFT_DEFAULT)
+            throttle_ser = serialize_value(throttle, VALUES_DEFAULT, SHIFT_DEFAULT)
 
             curr_time = time.time()
             timeout = curr_time - prev_time >= TIMEOUT
@@ -148,9 +146,3 @@ try:
                 clock.tick(TICK_RATE)
 
         pygame.quit()
-
-
-except serial.SerialException as e:
-    print(f"[Error] {e}")
-except KeyboardInterrupt:
-    print("Stopping...")
