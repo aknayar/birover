@@ -2,6 +2,7 @@ import pygame
 import serial
 import sys
 import time
+import os
 
 TICK_RATE = 30  # Hz
 DEADZONE = 0.075
@@ -16,6 +17,8 @@ SHIFT_SPIN = 5
 PORT = '/dev/cu.BiRover'
 BAUD = 9600
 DELIM = ','
+
+os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 pygame.init()
 pygame.joystick.init()
@@ -67,7 +70,8 @@ try:
                     print("Controller disconnected.")
                     running = False
 
-            steering = round(apply_deadzone(joystick.get_axis(0)), PRECISION_DEFAULT)
+            steering = round(apply_deadzone(
+                joystick.get_axis(0)), PRECISION_DEFAULT)
             spinning = round(round(apply_deadzone(
                 joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
             brake = round(joystick.get_axis(4), PRECISION_DEFAULT)
