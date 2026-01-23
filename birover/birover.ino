@@ -49,9 +49,9 @@ Adafruit_DCMotor motor_right = *AFMS.getMotor(2);
 Adafruit_DCMotor motors[NUM_MOTORS] = { motor_left, motor_right };
 
 // Control state
-#define KP 20.0f
+#define KP 15.0f
 #define KD 0.5f
-#define KI 20.0f
+#define KI 25.0f
 
 constexpr float TICKS_PER_ROT = 40.0f;
 constexpr float MAX_RPM = 5.0f;
@@ -177,8 +177,17 @@ MotorState solve_motor(int idx, MotorTarget target) {
 
   uint16_t speed = min(max(0.0f, output), MAX_SPEED);
 
+
+  Serial.print(speed);
+  Serial.print(" ");
+  Serial.print(speed < 30);
+  Serial.print(" ");
+  Serial.print(controller.rpm < 0.5);
+  Serial.print(" ");
+  Serial.println(controller.rpm);
   if (speed < 30) {
     speed = 0;
+    target.direction = RELEASE;
   }
 
   return { target.direction, (uint8_t)speed };
