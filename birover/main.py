@@ -1,4 +1,3 @@
-import pygame
 import serial
 import time
 import os
@@ -7,6 +6,7 @@ from pynput.keyboard import Key, Listener
 # Avoid pygame welcome message and window
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 os.environ["SDL_VIDEODRIVER"] = "dummy"
+import pygame # pylint: disable=wrong-import-position
 
 # Bluetooth constants
 PORT = '/dev/cu.BiRover'
