@@ -3,10 +3,15 @@ import serial
 import sys
 import time
 
-TICK_RATE = 60  # Hz
-PRECISION = 1
+TICK_RATE = 30  # Hz
 DEADZONE = 0.075
 TIMEOUT = 0.2  # (s) Resend even if no change
+PRECISION_DEFAULT = 1
+PRECISION_SPIN = 2
+VALUES_DEFAULT = 10
+VALUES_SPIN = 3
+SHIFT_DEFAULT = 0
+SHIFT_SPIN = 5
 
 PORT = '/dev/cu.BiRover'
 BAUD = 9600
@@ -25,7 +30,7 @@ joystick = pygame.joystick.Joystick(0)
 
 running = True
 
-prev_state = (float('inf'), float('inf'), float('inf'))
+prev_state = (float('inf'), float('inf'), float('inf'), float('inf'))
 prev_time = 0
 
 
@@ -44,11 +49,10 @@ def apply_deadzone(val):
     return val
 
 
-def serialize_value(val):
+def serialize_value(val, values, shift):
     # Convert float in the range of -1 to 1 (0.1 granularity) to a 1-byte int
-    # 0 -> 16
-
-    return int(min(1, max(-1, val)) * 10) + 16
+    # 0 -> offset
+    return (int(round((min(1, max(-1, val)) + 1) * values))) << shift
 
 
 try:
@@ -63,29 +67,33 @@ try:
                     print("Controller disconnected.")
                     running = False
 
-            steering = round(apply_deadzone(joystick.get_axis(0)), PRECISION)
-            brake = round(joystick.get_axis(4), PRECISION)
-            throttle = round(joystick.get_axis(5), PRECISION)
+            steering = round(apply_deadzone(joystick.get_axis(0)), PRECISION_DEFAULT)
+            spinning = round(round(apply_deadzone(
+                joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
+            brake = round(joystick.get_axis(4), PRECISION_DEFAULT)
+            throttle = round(joystick.get_axis(5), PRECISION_DEFAULT)
 
-            steering_ser = serialize_value(steering)
-            brake_ser = serialize_value(brake)
-            throttle_ser = serialize_value(throttle)
+            steering_ser = serialize_value(
+                steering, VALUES_DEFAULT, SHIFT_DEFAULT)
+            spinning_ser = serialize_value(spinning, VALUES_SPIN, SHIFT_SPIN)
+            steering_spinning_ser = steering_ser | spinning_ser
+
+            brake_ser = serialize_value(brake, VALUES_DEFAULT, SHIFT_DEFAULT)
+            throttle_ser = serialize_value(
+                throttle, VALUES_DEFAULT, SHIFT_DEFAULT)
 
             curr_time = time.time()
             timeout = curr_time - prev_time >= TIMEOUT
-            if (steering, brake, throttle) != prev_state or timeout:
-                if timeout:
-                    print(f"Timeout: {curr_time - prev_time}")
-
+            if (steering, spinning, brake, throttle) != prev_state or timeout:
                 print(
-                    f"\rSteering: {steering}, Brake: {brake}, Throttle: {throttle}"
-                    f" ->{steering_ser}, {brake_ser}, {throttle_ser}", end="")
+                    f"\rSteering: {steering}, Spinning: {spinning}, Brake: {brake}, Throttle: {throttle}"
+                    f" ->{steering_spinning_ser}, {brake_ser}, {throttle_ser}", end="")
 
-                msg = f"{steering_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
+                msg = f"{steering_spinning_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
                 send_message(ser, msg)
                 prev_time = curr_time
 
-            prev_state = (steering, brake, throttle)
+            prev_state = (steering, spinning, brake, throttle)
 
             if not timeout:
                 clock.tick(TICK_RATE)

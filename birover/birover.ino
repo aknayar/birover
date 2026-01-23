@@ -33,12 +33,21 @@ constexpr uint8_t NUM_VALUES = 3;
 constexpr float SPIN_THRESHOLD = 1.0f;
 constexpr MotorState REST = { RELEASE, 0 };
 
+#define NUM_BITS_DEFAULT 5
+#define NUM_BITS_SPIN 3
+constexpr float VALUES_DEFAULT = 10;
+constexpr float VALUES_SPIN = 3;
+constexpr uint8_t SHIFT_DEFAULT = 0;
+constexpr uint8_t SHIFT_SPIN = NUM_BITS_DEFAULT;
+constexpr uint8_t MASK_DEFAULT = (1 << NUM_BITS_DEFAULT) - 1;
+constexpr uint8_t MASK_SPIN = (1 << NUM_BITS_SPIN) - 1;
+
 uint8_t buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
 
 
-volatile float steering, brake, throttle;
+volatile float steering, spinning, brake, throttle;
 
 // Motor state
 constexpr uint16_t MAX_SPEED = 255;
@@ -110,8 +119,11 @@ void setup() {
   last_interval = millis();
 }
 
-float deserialize_val(const byte b) {
-  return (((int)b) - 16) / 10.0f;
+float deserialize_val(const uint8_t b,
+                      const float values,
+                      const uint8_t shift,
+                      const uint8_t mask) {
+  return ((((int)b >> shift) & mask) / values) - 1.0f;
 }
 
 float normalize(const float value) {
@@ -178,13 +190,13 @@ MotorState solve_motor(int idx, MotorTarget target) {
   uint16_t speed = min(max(0.0f, output), MAX_SPEED);
 
 
-  Serial.print(speed);
-  Serial.print(" ");
-  Serial.print(speed < 30);
-  Serial.print(" ");
-  Serial.print(controller.rpm < 0.5);
-  Serial.print(" ");
-  Serial.println(controller.rpm);
+  // Serial.print(speed);
+  // Serial.print(" ");
+  // Serial.print(speed < 30);
+  // Serial.print(" ");
+  // Serial.print(controller.rpm < 0.5);
+  // Serial.print(" ");
+  // Serial.println(controller.rpm);
   if (speed < 30) {
     speed = 0;
     target.direction = RELEASE;
@@ -238,10 +250,12 @@ void loop() {
     if (Serial1.read() == NUM_VALUES) {
       Serial1.readBytes(buf, NUM_VALUES);
 
+
       // Full message received
-      steering = deserialize_val(buf[0]);
-      brake = deserialize_val(buf[1]);
-      throttle = deserialize_val(buf[2]);
+      steering = deserialize_val(buf[0], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
+      spinning = deserialize_val(buf[0], VALUES_SPIN, SHIFT_SPIN, MASK_SPIN);
+      brake = deserialize_val(buf[1], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
+      throttle = deserialize_val(buf[2], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
 
       // Serial.print(0);
       // Serial.print(" ");
