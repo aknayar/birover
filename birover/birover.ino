@@ -28,14 +28,14 @@ struct MotorTarget {
 };
 
 // Bluetooth State
-constexpr uint64_t TIMEOUT_MILLIS = 250;
-constexpr uint8_t NUM_VALUES = 3;
+constexpr uint64_t TIMEOUT_MILLIS = 500;
+constexpr uint8_t NUM_VALUES = 2;
 constexpr MotorState REST = { RELEASE, 0 };
 
 #define NUM_BITS_DEFAULT 5
 #define NUM_BITS_SPIN 3
-constexpr float VALUES_DEFAULT = 10;
-constexpr float VALUES_SPIN = 3;
+const float VALUES_DEFAULT = pow(2, NUM_BITS_DEFAULT - 1) - 1;
+const float VALUES_SPIN = pow(2, NUM_BITS_SPIN - 1) - 1;
 constexpr uint8_t SHIFT_DEFAULT = 0;
 constexpr uint8_t SHIFT_SPIN = NUM_BITS_DEFAULT;
 constexpr uint8_t MASK_DEFAULT = (1 << NUM_BITS_DEFAULT) - 1;
@@ -45,7 +45,7 @@ uint8_t buf[NUM_VALUES];
 
 uint64_t prev_millis = 0;
 
-volatile float steering, spinning, brake, throttle;
+volatile float steering, spinning, velocity;
 
 // Motor state
 constexpr uint16_t MAX_SPEED = 255;
@@ -117,15 +117,12 @@ void setup() {
   last_interval = millis();
 }
 
-float deserialize_val(const uint8_t b,
-                      const float values,
-                      const uint8_t shift,
-                      const uint8_t mask) {
-  return ((((int)b >> shift) & mask) / values) - 1.0f;
-}
+float deserialize_value(const uint8_t b,
+                        const float values,
+                        const uint8_t shift,
+                        const uint8_t mask) {
 
-float normalize(const float value) {
-  return (value + 1.0f) / 2.0f;  // [-1, 1] -> [0, 1]
+  return ((((int)b >> shift) & mask) / values) - 1.0f;
 }
 
 uint8_t flip_direction(const uint8_t direction) {
@@ -135,10 +132,9 @@ uint8_t flip_direction(const uint8_t direction) {
 MotorTarget translate_input(const int idx,
                             const float steering,
                             const float spinning,
-                            const float throttle,
-                            const float brake) {
+                            const float velocity_raw) {
   const bool spin = spinning != 0;
-  const float velocity = (spin ? spinning : (normalize(throttle) - normalize(brake))) * MAX_RPM;
+  const float velocity = (spin ? spinning : velocity_raw) * MAX_RPM;
   const float speed = abs(velocity);
 
   // "BACKWARD" is really forward...
@@ -252,12 +248,10 @@ void loop() {
     if (Serial1.read() == NUM_VALUES) {
       Serial1.readBytes(buf, NUM_VALUES);
 
-
       // Full message received
-      steering = deserialize_val(buf[0], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
-      spinning = deserialize_val(buf[0], VALUES_SPIN, SHIFT_SPIN, MASK_SPIN);
-      brake = deserialize_val(buf[1], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
-      throttle = deserialize_val(buf[2], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
+      steering = deserialize_value(buf[0], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
+      spinning = deserialize_value(buf[0], VALUES_SPIN, SHIFT_SPIN, MASK_SPIN);
+      velocity = deserialize_value(buf[1], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
 
       // Serial.print(0);
       // Serial.print(" ");
@@ -271,7 +265,7 @@ void loop() {
 
   // Convert throttle, brake, steering into motor values
   FOR_MOTORS(i) {
-    const MotorTarget target = translate_input(i, steering, spinning, throttle, brake);
+    const MotorTarget target = translate_input(i, steering, spinning, velocity);
     const MotorState state = solve_motor(i, target);
     update_motor(motors[i], state);
   }

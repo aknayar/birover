@@ -1,12 +1,14 @@
 import serial
 import time
+import numpy as np
 import os
 from pynput.keyboard import Key, Listener
 
-# Avoid pygame welcome message and window
+# fmt: off - Avoid pygame welcome message and window
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 os.environ["SDL_VIDEODRIVER"] = "dummy"
-import pygame # pylint: disable=wrong-import-position
+import pygame
+# fmt: on
 
 # Bluetooth constants
 PORT = '/dev/cu.BiRover'
@@ -15,21 +17,19 @@ BAUD = 9600
 # Control constants
 TICK_RATE = 30  # Hz
 DEADZONE = 0.075
-TIMEOUT = 0.2  # (s) Resend even if no change
+TIMEOUT = 0.250  # (s) Resend even if no change
 COMMANDS = set(['w', 's', 'a', 'd'])
 
 # Serialization constants
-PRECISION_DEFAULT = 1
-PRECISION_SPIN = 2
-VALUES_DEFAULT = 10
-VALUES_SPIN = 3
+BITS_DEFAULT = 5
+BITS_SPIN = 3
 SHIFT_DEFAULT = 0
 SHIFT_SPIN = 5
 DELIM = ','
 
 # Control state
 keys = set()
-prev_state = (float('inf'), float('inf'), float('inf'), float('inf'))
+prev_state = (float('inf'), float('inf'), float('inf'))
 prev_time = 0
 running = True
 
@@ -62,10 +62,15 @@ def apply_deadzone(val):
     return val
 
 
-def serialize_value(val, values, shift):
-    # Convert float in the range of -1 to 1 (0.1 granularity) to a 1-byte int
-    # -1 -> 2 ** shift
-    return (int(round((min(1, max(-1, val)) + 1) * values))) << shift
+def normalize_value(val):
+    return (val + 1) / 2
+
+
+def serialize_value(val, nbits, shift):
+    nvalues = int(2 ** nbits - 1)
+    clamped_val = np.clip(val, -1, 1)
+    space = np.linspace(-1, 1, nvalues)
+    return ((idx := np.argmin(np.abs(space - clamped_val))) << shift, space[idx])
 
 
 try:
@@ -110,33 +115,32 @@ try:
                     if event.type == pygame.JOYDEVICEREMOVED:
                         running = False
 
-                steering = round(apply_deadzone(
-                    joystick.get_axis(0)), PRECISION_DEFAULT)
-                spinning = round(round(apply_deadzone(
-                    joystick.get_axis(2)) * 3) / 3, PRECISION_SPIN)
-                brake = round(joystick.get_axis(4), PRECISION_DEFAULT)
-                throttle = round(joystick.get_axis(5), PRECISION_DEFAULT)
+                steering = apply_deadzone(joystick.get_axis(0))
+                spinning = apply_deadzone(joystick.get_axis(2))
+                brake = normalize_value(apply_deadzone(joystick.get_axis(4)))
+                throttle = normalize_value(
+                    apply_deadzone(joystick.get_axis(5)))
 
-            steering_ser = serialize_value(
-                steering, VALUES_DEFAULT, SHIFT_DEFAULT)
-            spinning_ser = serialize_value(spinning, VALUES_SPIN, SHIFT_SPIN)
+            steering_ser, steering = serialize_value(
+                steering, BITS_DEFAULT, SHIFT_DEFAULT)
+            spinning_ser, spinning = serialize_value(
+                spinning, BITS_SPIN, SHIFT_SPIN)
             steering_spinning_ser = steering_ser | spinning_ser
-            brake_ser = serialize_value(brake, VALUES_DEFAULT, SHIFT_DEFAULT)
-            throttle_ser = serialize_value(
-                throttle, VALUES_DEFAULT, SHIFT_DEFAULT)
+            velocity_ser, velocity = serialize_value(
+                throttle - brake, BITS_DEFAULT, SHIFT_DEFAULT)
 
             curr_time = time.time()
             timeout = curr_time - prev_time >= TIMEOUT
-            if (steering, spinning, brake, throttle) != prev_state or timeout:
+            if (steering, spinning, velocity) != prev_state or timeout:
                 print(
                     f"\rSteering: {steering}, Spinning: {spinning}, "
-                    f"Brake: {brake}, Throttle: {throttle}", end=' ')
+                    f"Velocity: {velocity}" + ' ' * 30, end='')
 
-                msg = f"{steering_spinning_ser}{DELIM}{brake_ser}{DELIM}{throttle_ser}"
+                msg = f"{steering_spinning_ser}{DELIM}{velocity_ser}"
                 send_message(ser, msg)
                 prev_time = curr_time
 
-            prev_state = (steering, spinning, brake, throttle)
+            prev_state = (steering, spinning, velocity)
 
             if not timeout:
                 clock.tick(TICK_RATE)
