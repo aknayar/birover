@@ -21,6 +21,7 @@ TIMEOUT = 0.250  # (s) Resend even if no change
 COMMANDS = set(['w', 's', 'a', 'd'])
 
 # Serialization constants
+SEQ_BYTE = (1 << 8) - 1
 BITS_DEFAULT = 5
 BITS_SPIN = 3
 SHIFT_DEFAULT = 0
@@ -49,9 +50,8 @@ def get_char(key):
 
 def send_message(ser, msg):
     data = bytearray()
-    toks = msg.split(DELIM)
-    data.append(len(toks))
-    data.extend([int(x) for x in toks])
+    data.append(SEQ_BYTE)
+    data.extend([int(x) for x in msg.split(DELIM)])
 
     ser.write(data)
 
@@ -92,21 +92,20 @@ try:
         listener.start()
 
         while running:
-            steering, spinning, brake, throttle = 0.0, 0.0, -1.0, -1.0
+            steering_raw, spinning_raw, velocity_raw = 0.0, 0.0, 0.0
             if len(keys) > 0:
                 if 'esc' in keys:
                     running = False
                 if 'w' in keys:
-                    throttle += 2
+                    velocity_raw += 1
                 if 's' in keys:
-                    brake += 2
+                    velocity_raw -= 1
                 if 'a' in keys:
-                    steering -= .5
+                    steering_raw -= .5
                 if 'd' in keys:
-                    steering += .5
-                if steering != 0.0 and brake == -1.0 and throttle == -1.0:
-                    spinning = 2 * steering
-                    steering = 0.0
+                    steering_raw += .5
+                if steering_raw != 0.0 and velocity_raw == 0.0:
+                    spinning_raw = 2 * steering_raw
 
             elif joystick is not None:
                 for event in pygame.event.get():
@@ -115,19 +114,25 @@ try:
                     if event.type == pygame.JOYDEVICEREMOVED:
                         running = False
 
-                steering = apply_deadzone(joystick.get_axis(0))
-                spinning = apply_deadzone(joystick.get_axis(2))
-                brake = normalize_value(apply_deadzone(joystick.get_axis(4)))
-                throttle = normalize_value(
+                steering_raw = apply_deadzone(joystick.get_axis(0))
+                spinning_raw = apply_deadzone(joystick.get_axis(2))
+                brake_raw = normalize_value(
+                    apply_deadzone(joystick.get_axis(4)))
+                throttle_raw = normalize_value(
                     apply_deadzone(joystick.get_axis(5)))
+                velocity_raw = throttle_raw - brake_raw
+
+            if spinning_raw != 0.0:
+                steering_raw = 0.0
+                velocity_raw = 0.0
 
             steering_ser, steering = serialize_value(
-                steering, BITS_DEFAULT, SHIFT_DEFAULT)
+                steering_raw, BITS_DEFAULT, SHIFT_DEFAULT)
             spinning_ser, spinning = serialize_value(
-                spinning, BITS_SPIN, SHIFT_SPIN)
+                spinning_raw, BITS_SPIN, SHIFT_SPIN)
             steering_spinning_ser = steering_ser | spinning_ser
             velocity_ser, velocity = serialize_value(
-                throttle - brake, BITS_DEFAULT, SHIFT_DEFAULT)
+                velocity_raw, BITS_DEFAULT, SHIFT_DEFAULT)
 
             curr_time = time.time()
             timeout = curr_time - prev_time >= TIMEOUT

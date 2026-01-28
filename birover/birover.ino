@@ -28,6 +28,7 @@ struct MotorTarget {
 };
 
 // Bluetooth State
+constexpr uint8_t SEQ_BYTE = (uint8_t)(((uint16_t)1 << 8) - 1);
 constexpr uint64_t TIMEOUT_MILLIS = 500;
 constexpr uint8_t NUM_VALUES = 2;
 constexpr MotorState REST = { RELEASE, 0 };
@@ -51,9 +52,7 @@ volatile float steering, spinning, velocity;
 constexpr uint16_t MAX_SPEED = 255;
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-Adafruit_DCMotor motor_left = *AFMS.getMotor(1);
-Adafruit_DCMotor motor_right = *AFMS.getMotor(2);
-Adafruit_DCMotor motors[NUM_MOTORS] = { motor_left, motor_right };
+Adafruit_DCMotor motors[NUM_MOTORS] = { *AFMS.getMotor(1), *AFMS.getMotor(2) };
 
 // Control state
 #define KP 15.0f
@@ -103,8 +102,9 @@ void setup() {
   // Motor setup
   AFMS.begin();
 
-  update_motor(motor_left, REST);
-  update_motor(motor_right, REST);
+  FOR_MOTORS(i) {
+    update_motor(motors[i], REST);
+  }
 
   // Photointerruptor setup
   pinMode(L_INT_PIN, INPUT_PULLUP);
@@ -141,7 +141,6 @@ MotorTarget translate_input(const int idx,
   MotorTarget target = { BACKWARD, speed };
 
   float steering_multiplier = 1.0f;
-  if (!spin) steering_multiplier = 1.0f - abs(steering);
 
   if (spin) {
     if (spinning < 0 && idx == LEFT) {
@@ -151,17 +150,20 @@ MotorTarget translate_input(const int idx,
       target.direction = FORWARD;
     }
   } else {
+    steering_multiplier = 1.0f - abs(steering);
+
     if (steering < 0 && idx == LEFT) {
       target.rpm *= steering_multiplier;
     }
     if (steering > 0 && idx == RIGHT) {
       target.rpm *= steering_multiplier;
     }
+
+    if (velocity < 0) {
+      target.direction = flip_direction(target.direction);
+    }
   }
 
-  if (!spin && velocity < 0) {
-    target.direction = flip_direction(target.direction);
-  }
 
   if (target.rpm == 0) {
     target.direction = controllers[idx].prev_direction;
@@ -187,14 +189,6 @@ MotorState solve_motor(int idx, MotorTarget target) {
 
   uint16_t speed = min(max(0.0f, output), MAX_SPEED);
 
-
-  // Serial.print(speed);
-  // Serial.print(" ");
-  // Serial.print(speed < 30);
-  // Serial.print(" ");
-  // Serial.print(controller.rpm < 0.5);
-  // Serial.print(" ");
-  // Serial.println(controller.rpm);
   if (speed < 30) {
     speed = 0;
     target.direction = RELEASE;
@@ -209,8 +203,9 @@ void loop() {
 
   // Handle possible Bluetooth disconnect
   if (curr_millis - prev_millis > TIMEOUT_MILLIS) {
-    update_motor(motor_left, REST);
-    update_motor(motor_right, REST);
+    FOR_MOTORS(i) {
+      update_motor(motors[i], REST);
+    }
     digitalWrite(LED_PIN, HIGH);
   }
 
@@ -245,22 +240,14 @@ void loop() {
     digitalWrite(LED_PIN, LOW);
     prev_millis = curr_millis;
 
-    if (Serial1.read() == NUM_VALUES) {
+    if (Serial1.read() == SEQ_BYTE) {
       Serial1.readBytes(buf, NUM_VALUES);
 
       // Full message received
       steering = deserialize_value(buf[0], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
       spinning = deserialize_value(buf[0], VALUES_SPIN, SHIFT_SPIN, MASK_SPIN);
       velocity = deserialize_value(buf[1], VALUES_DEFAULT, SHIFT_DEFAULT, MASK_DEFAULT);
-
-      // Serial.print(0);
-      // Serial.print(" ");
-      // Serial.print(5);
-      // Serial.print(" ");
-      // Serial.print(controllers[0].rpm);
-      // Serial.print(" ");
-      // Serial.println(controllers[1].rpm);
-    };
+    }
   }
 
   // Convert throttle, brake, steering into motor values
