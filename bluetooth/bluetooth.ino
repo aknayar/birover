@@ -1,10 +1,8 @@
-#define LED_PIN 7
-
 void setup() {
   Serial.begin(9600);
   Serial1.begin(9600);
 
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop() {
@@ -18,10 +16,10 @@ void loop() {
     Serial.print("}\n");
 
     if (c == '1') {
-      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(LED_BUILTIN, HIGH);
       Serial.print("Turned LED on\n");
     } else if (c == '0') {
-      digitalWrite(LED_PIN, LOW);
+      digitalWrite(LED_BUILTIN, LOW);
       Serial.print("Turned LED off\n");
     }
   }

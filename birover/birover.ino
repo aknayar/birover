@@ -11,7 +11,6 @@
 
 #define L_INT_PIN 2
 #define R_INT_PIN 3
-#define LED_PIN 7
 
 #define FOR_MOTORS(i) for (int i = 0; i < NUM_MOTORS; i++)
 
@@ -96,8 +95,8 @@ void update_motor(Adafruit_DCMotor& motor, const MotorState& state) {
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
 
   // Motor setup
   AFMS.begin();
@@ -206,7 +205,7 @@ void loop() {
     FOR_MOTORS(i) {
       update_motor(motors[i], REST);
     }
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED_BUILTIN, HIGH);
   }
 
   // Update motor positions
@@ -237,7 +236,7 @@ void loop() {
 
   // Process incoming Bluetooth message
   if (Serial1.available() >= 1 + NUM_VALUES) {
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_BUILTIN, LOW);
     prev_millis = curr_millis;
 
     if (Serial1.read() == SEQ_BYTE) {
