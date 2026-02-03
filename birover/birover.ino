@@ -128,12 +128,16 @@ uint8_t flip_direction(const uint8_t direction) {
   return ((direction - 1) ^ 1) + 1;  // flip 1 and 2
 }
 
+float speed_curve(float raw_speed) {
+  return (raw_speed < 0 ? -1.0f : 1.0f) * (raw_speed * raw_speed);
+}
+
 MotorTarget translate_input(const int idx,
                             const float steering,
                             const float spinning,
                             const float velocity_raw) {
   const bool spin = spinning != 0;
-  const float velocity = (spin ? spinning : velocity_raw) * MAX_RPM;
+  const float velocity = speed_curve((spin ? spinning : velocity_raw)) * MAX_RPM;
   const float speed = abs(velocity);
 
   // "BACKWARD" is really forward...
